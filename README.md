@@ -1,4 +1,4 @@
-# R-repo
+# r-repo
 
 I am makig some edits to this README using Markdown!
 
