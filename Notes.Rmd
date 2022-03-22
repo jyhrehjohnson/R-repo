@@ -1,0 +1,705 @@
+---
+title: "Untitled"
+author: "Jyhreh Johnson"
+date: "3/1/2022"
+output: html_document
+---
+
+
+February 22, 2022
+```{r}
+library(mosaic)
+plotDist("norm", mean = 2, sd = 1, xlim = c(0,4))
+plotDist('beta', params = list(1,10), xlim = c(-0.5, 0.5))
+plotDist('unif', params = list(1,32), xlim = c(0.5, 35))
+plotDist('pois', params = list(10), xlim = c(0,30))
+plotDist('pois', params = list(2), xlim = c(0,10))
+```
+
+```{r}
+n <- rnorm(reps, mean = 2, sd = 1)
+histogram(n)
+plotDist("norm", mean = 2, sd = 1, add = TRUE)
+n_mean <- do(reps) * mean(rnorm(reps, mean = 2, sd = 1))
+histogram(n_mean$mean)
+ladd(panel.abline(v = mean(n_mean$mean)))
+histogram(n_mean$mean)
+plotDist("norm", mean = mean(n_mean$mean), sd = sd(n_mean$mean), add = TRUE)
+ladd(panel.abline(v = mean(n_mean$mean)))
+```
+
+Beta Distribution
+```{r}
+b <- rbeta(reps, shape1 = 1, shape2 = 10)
+histogram(b)
+plotDist("beta", params = list(1,10), add = TRUE)
+b_mean <- do(reps) * mean(rbeta(reps, shape1 = 1, shape2 = 10))
+ladd(panel.abline(v = mean(b_mean$mean)))
+```
+
+Uniform Distribution
+```{r}
+u <- runif(reps, min = 1, max = 2)
+histogram(u)
+plotDist("unif", params = list(1,2), add = TRUE)
+u_mean <- do(reps) * mean(runif(reps, min = 1, max = 2))
+ladd(panel.abline(v = mean(u_mean$mean)))
+histogram(u_mean$mean)
+plotDist("norm", mean = mean(u_mean$mean), sd = sd(u_mean$mean), add = TRUE)
+ladd(panel.abline(v = mean(u_mean$mean)))
+```
+
+```{r}
+u <- runif(reps, min = 1, max = 2)
+histogram(u)
+u_mean <- do(reps) * stats::quantile(runif(reps, min = 1, max = 2), 0.25)
+```
+
+March 1
+
+Classical hypothesis testing typically involves formally stating a claim- the null hypothesis- which is then followed up by statistical evaluation of the null v an alternative hypothesis
+
+Null is the baseline hypothesis
+
+H0 = null hypothesis = a sample statistic shows no deviation from what iss expected or neutral based on the parameter space of possible outcomes under the presumed random sampling process
+
+HA= alternate hypothesis = a sampl statistic deviates more than expected by chance from what is expected or neutral
+
+calculate a test statistic based on data
+calculate a p value
+evaluate whether the p valu is less or greater than the significance level, or a
+Working with Means | One sample Z and T test 
+```{r}
+library(tidyverse)
+f <- "https://raw.githubusercontent.com/difiore/ada-2022-datasets/main/vervet-weights.csv"
+d <- read_csv(f, col_names=TRUE)
+head(d)
+
+mean(d$weight)
+mu <- 5.0
+x <- d$weight
+n <- length(x)
+(m <- mean(x))
+
+(s <- sd(x))
+(se <- s/sqrt(n))
+
+library(mosaic)
+histogram(x, breaks = seq(from = m - 4 * s, to = m + 4 * s,
+  length.out = 20),
+  main = "Histogram of Vervet\nWeights", xlab = "X", ylab = "Proportion of Total",
+  type = "density", ylim = c(0,3),
+  col = rgb(0, 0, 1, 0.5))
+ladd(panel.abline(v=mu, col="black",lty=1, lwd=2)) # expected mean
+ladd(panel.abline(v=m, col="black",lty=3, lwd=2))  # observed mean
+
+plotDist("norm", mean = m, sd = se, xlim=c(m - 4 * se, m + 4*se), add=TRUE, lwd = 1, col= "black", lty=1)
+
+z <- qnorm(0.05) # define lower bound of upper 95% of distribution
+ladd(panel.polygon(cbind(
+  c(
+    m + z * se,
+    seq(from = m + z * se, to = max(x), length.out = 1000),
+    max(x)
+  ),
+  c(
+    0,
+    dnorm(seq(from = m + z * se, to = max(x), length.out = 1000), m, se),
+    0
+  )), border = "black", col = rgb(1, 0, 1, 0.5)))
+
+z <- (m - mu)/se
+z
+
+p <- 1 - pnorm(z)
+p
+
+OR #they both produce the same number
+
+p1 <- pnorm(z, lower.tail=FALSE)
+p1
+
+z <- (m - mu)/se
+(p <- 1 - pt(z, df=n-1))
+(p <- pt(z, df=n-1, lower.tail=FALSE))
+(critical_val <- qt(0.95, df=n-1))
+
+#one sample t-test
+t_stat <- t.test(x=x, mu=mu, alternative="greater")
+t_stat # the value of the t statistic is a Z score
+
+alpha <- 0.05
+ci <- c(m - qt(1 - alpha / 2, df = n - 1) * se, Inf) # lower bound calculated by hand
+ci
+```
+
+Module 15 Challenge
+```{r}
+library(tidyverse)
+f <- "https://raw.githubusercontent.com/difiore/ada-2022-datasets/main/woolly-weights.csv"
+d <- read_csv(f, col_names=TRUE)
+head(d)
+
+mean(d$weight)
+
+a <- d$weight
+b <- length(a)
+(m <- mean(a))
+
+w_sd <- sd(a)
+w_sd
+
+w_se <- w_sd/sqrt(b)
+
+mu <- 7.2
+t_stat <- (m - mu)/w_se
+t_stat
+
+p_upper <- 1-pt(abs(t_stat), df=b-1)
+p_lower <- pt(-1*abs(t_stat ), df=b-1)
+p <- p_upper + p_lower
+p
+
+plotDist("t", df = b - 1, main=paste0("t Distribution with DF = ", n-1,"\nred area = 2.5% in each tail","\nblue = ",round(p,4)*100, "%"), ylab="", xlab="SD", xlim=c(-4,4))
+ladd(panel.abline(v=abs(t_stat), col="blue",lty=1, lwd=2))
+ladd(panel.abline(v=-1 * abs(t_stat), col="blue",lty=1, lwd=2))
+
+# plot upper tail
+ladd(panel.polygon(cbind(c(abs(t_stat),seq(from=abs(t_stat), to=4, length.out=100), 4), c(0,dt(seq(from=abs(t_stat), to=4, length.out=100),df=b-1),0)), border="black",col=rgb(0,0,1,0.5)))
+
+# plot lower tail
+ladd(panel.polygon(cbind(c(-4,seq(from=-4, to = -1*abs(t_stat), length.out=100), -1*abs(t_stat)),c(0,dt(seq(from=-4, to=-1*abs(t_stat), length.out=100), df=b-1),0)), border="black",col=rgb(0,0,1,0.5)))
+
+alpha <- 0.05
+critical_val <- qt(1 - alpha/2, df=b-1) # identify critical values - boundaries for 95% of the t distribution
+ladd(panel.abline(v=abs(critical_val), col="red", lty=2, lwd=2))
+ladd(panel.abline(v=-1*abs(critical_val), col="red", lty=2, lwd=2))
+
+ladd(panel.polygon(cbind(c(critical_val,seq(from=critical_val, to=4, length.out=100), 4), c(0,dt(seq(from=critical_val, to=4, length.out=100),df = b-1),0)), border="black",col=rgb(1,0,0,0.5)))
+
+ladd(panel.polygon(cbind(c(-4, seq(from = -4, to = -1*abs(critical_val), length.out=100), -1*abs(critical_val)), c(0,dt(seq(from=-4, to= -1*abs(critical_val), length.out=100), df = b-1),0)), border="black",col=rgb(1,0,0,0.5)))
+
+#test to see if the value of T stats is farther away from 0 than the critical value
+test <- (abs(t_stat) > critical_val)
+test
+
+(ci <- m + c(-1,1) * critical_val * w_se) #same thing just by hand
+
+t.test(x=a, mu=mu, alternative="two.sided") #using the t.test() function
+```
+March 3, 2022
+Two Simple Z and T Test
+```{r}
+library(tidyverse)
+f1 <- "https://raw.githubusercontent.com/difiore/ada-2022-datasets/main/colobus-weights.csv" 
+d1 <- read_csv(f1, col_names=TRUE)
+head(d1)
+
+x <- d1$weight[d1$sex =="male"] #vector of male weights
+y <- d1$weight[d1$sex =="female"] #vector of female weights
+par(mfrow=c(1, 2))
+minval <- min(c(x,y)) - 0.1
+maxval <- max(c(x,y)) + 0.1
+boxplot(x, ylim=c(minval,maxval), main="Weight (kg)",xlab="Males")
+# `ylim=` argument uses x and y ranges to set range for y axis
+boxplot(y, ylim=c(minval,maxval), main="Weight (kg)",xlab="Females")
+
+m1 <- mean(x)
+m2 <- mean(y)
+mu <- 0 # you could leave this out... the default argument value is 0
+sd1 <- sd(x)
+sd2 <- sd(y)
+n1 <- length(x)
+n2 <- length(y)
+
+#calculate T statistics
+df <- (sd2^2/n2 + sd1^2/n1)^2 / ((sd2^2/n2)^2/(n2-1) + (sd1^2/n1)^2/(n1-1))
+df
+
+alpha <- 0.05
+t_stat <- (m2 - m1 - mu) / sqrt(sd2^2/n2 + sd1^2/n1)
+t_stat
+
+# note that because our hypothesis is 2-tailed, it does not matter which group
+# (males or females) is m1 and which is m2, so we take the absolute values of t
+# below when testing whether it is greater than the critical value
+critical_val <- qt(1 - alpha/2, df=df)
+# identify the critical value, i.e., how far apart the means of the two samples
+# need to be more extreme than expected by chance at the given alpha level
+critical_val
+
+test <- abs(t_stat) > critical_val # boolean test
+test # if true, the two means are significantly different
+
+par(mfrow=c(1,1))
+hist(x,
+  breaks=seq(from=minval, to=maxval, length.out=15),
+  xlim=c(minval,maxval),
+  ylim=c(0,9),
+  main="Histogram and Sampling Distributions\nfor Body Weights\n(red = females, blue = males)",
+  col=rgb(0,0,1,0.5))
+# `xlim=` argument uses x and y ranges to set range for y axis
+hist(y, breaks=seq(from=minval, to=maxval, length.out=15), xlim=c(minval,maxval),
+  col=rgb(1,0,0,0.5), add=TRUE)
+curve(dnorm(x,m1,sd1/sqrt(n1)), n=1000, add=TRUE)
+curve(dnorm(x,m2,sd2/sqrt(n2)), n=1000, add=TRUE)
+
+abline(v=m1-qt(1 - alpha/2, df=df)*sd1/sqrt(n1))
+abline(v=m1+qt(1 - alpha/2, df=df)*sd1/sqrt(n1))
+abline(v=m2-qt(1 - alpha/2, df=df)*sd2/sqrt(n2))
+abline(v=m2+qt(1 - alpha/2, df=df)*sd2/sqrt(n2))
+
+(abs(m1-m2)) # difference between means
+
+t_stat2 <- t.test(x=x, y=y, mu=0, alternative="two.sided", var.equal = FALSE)
+# var.equal = FALSE is the DEFAULT for `t.test()`
+t_stat2
+```
+
+Samples with Equal Variances
+```{r}
+s <- sqrt((((n1-1)*s1^2)+((n2-1)*s2^2))/ (n1+n2-2))
+t_stat3 <- (m2 - m1 - mu)/(sqrt(s^2*(1/n1 + 1/n2)))
+t_stat3
+
+df2 <- n1 + n2 - 2
+df2
+
+t_stat4 <- t.test(x=x, y=y, mu=0, var.equal=TRUE, alternative="two.sided")
+t_stat4
+
+var(x)/var(y)
+
+vt <- var.test(x, y)
+vt
+```
+
+Paired Samples
+Challenge
+```{r}
+f2 <- "https://raw.githubusercontent.com/difiore/ada-2022-datasets/main/test_scores.csv"
+d2 <- read_csv(f2, col_names = TRUE)
+head(d2)
+
+j<- d$`Score after`-d$`Score before`
+m3 <- mean(j)
+mu <- 0 # can leave this out
+s1 <- sd(j)
+n3 <- length(j)
+se <- s1/sqrt(n1)
+par(mfrow=c(1, 2))
+boxplot(d$`Score before`, ylim=c(80,100), main="Score",xlab="Before")
+boxplot(d$`Score after`,ylim=c(80,100), main="Score",xlab="After")
+
+t_stat4 <- (m - mu)/se
+t_stat4
+
+alpha <- 0.05
+critical_val <- qt(1 - alpha/2, df=n3-1) # identify critical values
+critical_val
+
+t.test(d2$`Score before`,d2$`Score after`,df=n3-1, alternative="two.sided", paired=TRUE)
+```
+
+Working with Proportions
+```{r}
+pop <- c(rep(0,500),rep(1,500))
+pi <- 0.5
+x <- NULL
+n <- 10
+for (i in 1:1000){
+    x[i] <- mean(sample(pop,size=n,replace=FALSE))
+    # taking the mean of a bunch of 0s and 1s yields the proportion of 1s!
+}
+m <- mean(x)
+m
+s <- sd(x)
+s
+se <- sqrt(pi*(1-pi)/n) 
+se # the SE is an estimate of the SD of the sampling distribution
+```
+
+Module 16 | Hypothesis Testing via Permutation
+```{r}
+x <- d[d$sex=="female",]$weight
+y <- d[d$sex=="male",]$weight
+(actual_diff <- mean(x) - mean(y))
+
+nperm <- 10000 # number of permutation simulations
+# create a dummy vector to hold results for each permutation
+permuted_diff <- vector(length=nperm)
+test_data <- d
+for (i in 1:nperm) {
+  # scramble the sex vector
+  # `sample()` with a vector as an argument yields a random
+  # permutation of the vector
+  test_data$sex <- sample(test_data$sex) #shuffling sex 
+  x <- test_data[test_data$sex=="female",]$weight
+  y <- test_data[test_data$sex=="male",]$weight
+  permuted_diff[[i]] <- mean(x) - mean(y) subtracting male bodyweight from female bodyweight
+}
+#count how many times the permuted distribution is >= to the absolute value of the actual difference plus the times the negative is <= the absolute value of the actual difference 
+(p <- (sum(permuted_diff >= abs(actual_diff)) +
+         sum(permuted_diff <= -abs(actual_diff))) / nperm)
+p #probablity in the amount of times we are in these tails of a permuted distribution
+
+histogram(
+  permuted_diff,
+  type = "count",
+  xlab = "",
+  ylab = "# Permutations",
+  main = "Histogram of Permutation Distribution",
+  xlim = c(-1.75, 1.75)
+)
+ladd(panel.abline(v=actual_diff, lty=3, lwd=2))
+ladd(panel.text(
+  x = actual_diff,
+  y = nperm * 0.08,
+  "Test Statistic",
+  srt = 90,
+  pos = 4,
+  offset = 1
+))
+
+library(jmuOutlier)
+x <- d[d$sex=="female",]$weight
+y <- d[d$sex=="male",]$weight
+mu <- 0 # expected difference between means under null
+perm.test(x, y, alternative = "two.sided", mu = mu, plot = TRUE, num.sim = nperm)
+abline(v=actual_diff)
+
+perm.test(x, y, alternative = "two.sided", mu = mu, plot = FALSE, num.sim = nperm)
+
+detach(package:jmuOutlier)
+
+library(coin)
+independence_test(
+  weight ~ as.factor(sex),
+  alternative = "two.sided",
+  distribution = "approximate",
+  data = d
+)
+
+detach(package:coin)
+```
+
+March 8, 2022
+Estimating confidence intervals
+-if we know complete population
+Based on population SD and sample size (=>SE) and qnorm()
+-If we can resample from the population...
+Based on SD of sampling distribution (=>SE) and qnorm()
+Based on permutation (sampling) distribution and quantile()
+-Sample from population without replacement
+
+If we have a single sample...
+Based no sample SD and sample size (=>SE) and qnorm()
+Based on sample SD and sample size (=>SE) and qt()
+Based on bootstrap (sampling) distribution and quantile()
+-Resample from sample with replacement
+
+Yay Spatial Data 
+
+```{r}
+library(rgdal) # for readOGR()
+library(sp) # for spatial points (sp) spatial data
+library(sf) # for simple feature (sf) spatial data
+library(tmap) # for fast plotting of thematic maps
+library(adehabitatHR) # for MCP and KDE home ranges
+library(ggspatial) # for annotating maps
+library(cowplot) # for assembling pretty plots
+library(ggsn) # for pretty N arrow
+
+countries <- readOGR(dsn=paste0("data/",spatial_dir),layer="SA-countries")
+class(countries) # SpatialPolygonsDataFrame
+
+reserves <- readOGR(dsn=paste0("data/",spatial_dir),layer="reserves-ecuador")
+
+site <- readOGR(dsn=paste0("data/",spatial_dir),layer="tbs-site")
+class(site) # SpatialPointsDataFrame
+
+riverfile <- "smooth-rio-tiputini.gpx"
+river <- readOGR(dsn=paste0("data/",spatial_dir,"/",riverfile), layer = "routes")
+class(tiputini) #SpatialLinesDataFrame"
+trailsfile <- "trails.gpx"
+trails <- readOGR(dsn=paste0("data/",spatial_dir,"/",trailsfile), layer = "routes")
+```
+
+Programming exercise
+```{r}
+library(tidyverse)
+library(manipulate)
+library(mosaic)
+f <- "https://raw.githubusercontent.com/difiore/ada-2022-datasets/main/tbs-2006-2008-ranges.csv"
+d <- read.csv(f, header = TRUE, stringsAsFactors = FALSE)
+head(d)
+
+k95_summary <- d %>% group_by(sex)%>%
+  summarize(
+    k95_mean = mean(kernel95), 
+    k95_sd = sd(kernel95),
+    n = n(),
+    k95_se = k95_sd/sqrt(n) #can also  use filter to filter for each sex
+  )
+
+k95_summary
+
+boxplot(kernel95 ~ sex, data=d, xlab="Sex", ylab="Kernel95")
+
+#Use bootstrapping 
+m <- filter(d, sex == "M")
+f <- filter(d, sex == "F")
+
+male_boot <- 10000
+boot <- vector(length=male_boot) 
+n <- length(m$kernel95)
+for (i in 1:male_boot){
+  boot[[i]] <- mean(sample(m$kernel95, n, replace=TRUE))
+}
+
+histogram(boot)
+male_se <- sd(boot)
+plotDist("norm", mean(boot), male_se, add = TRUE) #plot the distribution
+
+female_boot <- 10000
+boot2 <- vector(length=female_boot) 
+n2 <- length(f$kernel95)
+for (i in 1:female_boot){
+  boot2[[i]] <- mean(sample(f$kernel95, n2, replace=TRUE))
+}
+
+histogram(boot2)
+female_se <- sd(boot2)
+plotDist("norm", mean(boot2), female_se, add = TRUE) #plot the distribution
+```
+
+March 22, 2022
+
+Module |Introduction to Regression
+
+Regression - common form of data modeling
+Premise of modeling is to explore the relationship b/w an outcome variable (y) also called dependent variable
+one or more explanatory/predictor variables (x), also called independent variable(s)
+```{r}
+library(tidybverse)
+library(manipulate)
+library(patchwork)
+library(infer)
+library(broom)
+library(lmodel2)
+
+f <- "https://raw.githubusercontent.com/difiore/ada-2022-datasets/main/zombies.csv"
+d <- read_csv(f, col_names = TRUE)
+
+head(d)
+
+
+plot(data = d, height ~ weight)
+```
+
+Challenge
+```{r}
+w <- d$weight
+h <- d$height
+n <- length(w) # or length(h)
+cov_wh <- sum((w - mean(w)) * (h - mean(h))) / (n - 1)
+cov_wh
+
+cov(w, h)
+```
+
+Challenge
+```{r}
+sd_w <- sd(w)
+sd_h <- sd(h)
+cor_wh <- cov_wh / (sd_w * sd_h)
+cor_wh
+
+cor(w, h)
+
+cor(w, h, method = "pearson")
+cor(w, h, method = "kendall")
+cor(w, h, method = "spearman")
+```
+
+Ordinary Least Squares(OLS)
+```{r}
+d <- mutate(d, centered_height = height - mean(height))
+d <- mutate(d, centered_weight = weight - mean(weight))
+
+p1 <- ggplot(data = d, aes(x = weight, y = height)) + geom_point()
+p2 <- ggplot(data = d, aes(x = centered_weight,
+  y = centered_height)) + geom_point()
+
+p1 + p2
+
+slope.test <- function(beta1, data){
+  g <- ggplot(data=data, aes(x = centered_weight, y = centered_height))
+  g <- g + geom_point()
+  g <- g + geom_abline(intercept = 0, slope = beta1, size = 1, colour="blue", alpha=1/2)
+  ols <- sum((data$centered_height - beta1 * data$centered_weight) ^2)
+  g <- g + ggtitle(paste("Slope = ", beta1,
+    "\nSum of Squared Deviations = ", round(ols, 3)))
+  g
+}
+
+manipulate(slope.test(beta1, data=d),
+  beta1 = slider(-1, 1, initial = 0, step = 0.005))
+
+#calculate Beta 1
+b1 <- cor(d$height, d$weight) * sd(d$height) / sd(d$weight)
+b1
+
+b0 <- mean(d$height) - b1*mean(d$weight) #the intercept 
+b0
+```
+
+Challenge
+```{r}
+(beta1 <- cor(w, h) * (sd(h) / sd(w)))
+(beta1 <- cov(w,h) / var(w))
+(beta1 <- sum((h-mean(h))*(w-mean(w)))/sum((w-mean(w))^2))
+```
+
+Challenge
+```{r}
+(beta0 <- mean(h) - beta1 * mean(w))
+```
+
+The lm() Function
+```{r}
+m <- lm(height ~ weight, data = d)
+m
+names(m) # components of the object, m
+m$coefficients # regression coefficients
+head(m$model)# x values and fitted y values
+tidy(m)
+glance(m)
+
+g <- ggplot(data = d, aes(x = weight, y = height))
+g <- g + geom_point()
+g <- g + geom_smooth(method = "lm", formula = y ~ x)
+g
+```
+Alternatives to OLS
+```{r}
+# load the lmodel2 package
+# Run the regression
+mII <- lmodel2( height ~ weight, data = d, range.y = "relative",
+  range.x = "relative", nperm = 1000)
+mII
+
+par(mfrow = c(2, 2))
+plot(mII, "OLS")
+plot(mII, "MA")
+plot(mII, "SMA")
+plot(mII, "RMA")
+
+detach(package:lmodel2)
+
+mI <- lm(height ~ weight, data = d)
+summary(mI)  # show lm() results
+
+# show lmodel2() OLS results
+filter(mII$regression.results, Method == "OLS")
+
+par(mfrow = c(1, 2))
+plot(mII, main = "lmodel2() OLS", xlab = "weight", ylab = "height")
+plot(data = d, height ~ weight, main = "lm()")
+abline(mI, col = "red")
+```
+
+Challenge
+```{r}
+par(mfrow = c(1, 1))
+plot(data = d, height ~ age)
+head(d)
+
+beta1 <- cor(d$height, d$age) * sd(d$height) / sd(d$age)
+beta1
+
+beta0 <- mean(d$height) - beta1 * mean(d$age)
+beta0
+
+(m <- lm(height ~ age, data = d))
+
+males <- filter(d, gender == "Male")
+
+(m <- lm(height ~ age, data = males))
+
+females <-  filter(d, gender == "Female")
+(m <- lm(height ~ age, data = females))
+```
+
+Exercise 1
+Load in the comparative dataset from Street et al on primate group size, brain size, and life history variables
+
+Plot brain size (ECV) as a function of social group size, longevity, juvenile period length, and reproductive lifespan
+
+Derive by hand the ordinary least squares regression coefficients B1 and B0 for ECV ~social group size
+
+Confirm that you set the same results using the 'lm()' function
+
+Repeat the analysis above for different groups of primates(catarrhinnes, platyrrhines, strepsirhines) separately. Do your regression coefficients differ? How might you determine this?
+```{r}
+library(skimr)
+f <- "https://raw.githubusercontent.com/difiore/ada-2022-datasets/main/Street_et_al_2017.csv"
+d <- read_csv(f, col_names = TRUE)
+head(d)
+skim(d)
+
+p1 <- ggplot(data = d, aes(x = ECV, y = Group_size)) + geom_point()
+p2 <- ggplot(data = d, aes(x = centered_weight,
+  y = centered_height)) + geom_point()
+
+p1 + p2
+
+```
+
+March 24, 2022
+
+Inference in Regression
+
+```{r}
+f <- "https://raw.githubusercontent.com/difiore/ada-2022-datasets/main/zombies.csv"
+d <- read_csv(f, col_names = TRUE)
+
+m <- lm(data = d, height ~ weight)
+summary(m)
+
+m.summary <- tidy(m)
+m.summary$calc.statistic <- (m.summary$estimate-0)/m.summary$std.error 
+m.summary$calc.p.value <- 2 * pt(m.summary$calc.statistic,
+  df=nrow(d)-2, lower.tail = FALSE)
+# we use 2 * pt to get the 2-tailed p value
+# alternatively, we could do...
+# m.summary$calc.p.value <- pt(-1*abs(m.summary$calc.statistic),
+#   df = nrow(d) - 2, lower.tail = TRUE) +
+#   pt(abs(m.summary$calc.statistic), df = nrow(d) - 2,
+#   lower.tail = FALSE)
+# or
+# m.summary$calc.p.value <- pt(-1*abs(m.summary$calc.statistic),
+#   df = nrow(d) - 2, lower.tail = TRUE) +
+#   (1-pt(abs(m.summary$calc.statistic), df = nrow(d) - 2,
+#   lower.tail = TRUE))
+m.summary
+
+glance(m)
+
+alpha <- 0.05
+# extract CIs from the model with
+# using the results of lm()
+(CI <- confint(m, level = 1 - alpha))
+# using tidy()
+(CI <- tidy(m, conf.int = TRUE, conf.level = 1- alpha))
+# by hand
+lower <- m.summary$estimate -
+  qt(1 - alpha / 2, df = nrow(d) - 2) * m.summary$std.error
+upper <- m.summary$estimate +
+  qt(1 - alpha / 2, df = nrow(d) - 2) * m.summary$std.error
+CI <- cbind(lower, upper)
+rownames(CI) <- c("(Intercept)", "weight")
+colnames(CI) <- c(paste0(as.character(alpha/2 * 100), " %"),paste0(as.character((1-alpha/2) * 100), " %"))
+CI
+```
+

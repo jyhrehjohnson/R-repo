@@ -8,4 +8,4 @@ I can use simple text formatting to make **bold** or *italics* text!
 
 Just **here** makin *edits*
 
-Adding new text to the README
+Here is some new text I am adding from the shell to update the README file. 
