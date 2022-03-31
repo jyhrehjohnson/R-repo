@@ -642,6 +642,12 @@ Confirm that you set the same results using the 'lm()' function
 
 Repeat the analysis above for different groups of primates(catarrhinnes, platyrrhines, strepsirhines) separately. Do your regression coefficients differ? How might you determine this?
 ```{r}
+library(tidyverse)
+library(mosaic)
+library(broom)
+library(patchwork)
+library(infer)
+library(lmodel2)
 library(skimr)
 f <- "https://raw.githubusercontent.com/difiore/ada-2022-datasets/main/Street_et_al_2017.csv"
 d <- read_csv(f, col_names = TRUE)
@@ -649,57 +655,233 @@ head(d)
 skim(d)
 
 p1 <- ggplot(data = d, aes(x = ECV, y = Group_size)) + geom_point()
-p2 <- ggplot(data = d, aes(x = centered_weight,
-  y = centered_height)) + geom_point()
+p2 <- ggplot(data = d, aes(x = ECV, y = Longevity)) + geom_point()
+p3 <- ggplot(data = d, aes(x = ECV, y = Weaning)) + geom_point()
+p4 <- ggplot(data = d, aes(x = ECV, y = Repro_lifespan)) + geom_point()
 
 p1 + p2
-
 ```
 
-March 24, 2022
+```{r}
+d_mod <- d %>% filter(!is.na(ECV) & !is.na(Group_size))
 
-Inference in Regression
+beta1 <- cor(d_mod$ECV, d_mod$Group_size) * sd(d_mod$ECV) / sd(d_mod$Group_size)
+beta1
+
+beta0 <- mean(d_mod$ECV) - beta1 * mean(d_mod$Group_size)
+beta0
+```
 
 ```{r}
-f <- "https://raw.githubusercontent.com/difiore/ada-2022-datasets/main/zombies.csv"
-d <- read_csv(f, col_names = TRUE)
+j <- lm(data = d, ECV ~ Group_size)
+summary(j)
 
-m <- lm(data = d, height ~ weight)
-summary(m)
+residuals <- d_mod$ECV - (beta0 + beta1 * d_mod$Group_size)
 
-m.summary <- tidy(m)
-m.summary$calc.statistic <- (m.summary$estimate-0)/m.summary$std.error 
-m.summary$calc.p.value <- 2 * pt(m.summary$calc.statistic,
+num <- sum(residuals^2)/ (length(residuals)-2)
+den <- sum(d_mod$Group_size - mean(d_mod$Group_size))^2
+```
+
+```{r}
+SE_beta1 <- sqrt(num/den)
+SE_beta0 <- SE_beta1 * sqrt(sum(d_mod$Group_size)/length(d_mod$Group_size))
+
+t_beta1 <- beta1/SE_beta1
+t_beta0 <- beta0/SE_beta0
+
+1 - pt(t_beta1, 149)
+```
+
+```{r}
+d_narm <- d_mod
+n <-nrow(d_narm)
+mean_x <- mean(d_narm$Group_size)
+y_pred = beta0 + beta1*d_narm$ECV
+y_error = d_narm$ECV - y_pred
+std_err_beta1 <- sqrt((sum(y_error^2))/((n-2)*sum(d_narm$Group_size-mean_x)^2))
+```
+```{r}
+j.summary <- tidy(j)
+j.summary$calc.statistic <- (j.summary$estimate-0)/j.summary$std.error 
+j.summary$calc.p.value <- 2 * pt(j.summary$calc.statistic,
   df=nrow(d)-2, lower.tail = FALSE)
-# we use 2 * pt to get the 2-tailed p value
-# alternatively, we could do...
-# m.summary$calc.p.value <- pt(-1*abs(m.summary$calc.statistic),
-#   df = nrow(d) - 2, lower.tail = TRUE) +
-#   pt(abs(m.summary$calc.statistic), df = nrow(d) - 2,
-#   lower.tail = FALSE)
-# or
-# m.summary$calc.p.value <- pt(-1*abs(m.summary$calc.statistic),
-#   df = nrow(d) - 2, lower.tail = TRUE) +
-#   (1-pt(abs(m.summary$calc.statistic), df = nrow(d) - 2,
-#   lower.tail = TRUE))
-m.summary
+j.summary
+```
 
-glance(m)
-
+```{r}
+#calculate the CI, I did it the long way but a cleaner/shorter way was provided in class
 alpha <- 0.05
-# extract CIs from the model with
-# using the results of lm()
-(CI <- confint(m, level = 1 - alpha))
-# using tidy()
-(CI <- tidy(m, conf.int = TRUE, conf.level = 1- alpha))
-# by hand
-lower <- m.summary$estimate -
-  qt(1 - alpha / 2, df = nrow(d) - 2) * m.summary$std.error
-upper <- m.summary$estimate +
-  qt(1 - alpha / 2, df = nrow(d) - 2) * m.summary$std.error
+lower <- j.summary$estimate -
+  qt(1 - alpha / 2, df = nrow(d) - 2) * j.summary$std.error
+upper <- j.summary$estimate +
+  qt(1 - alpha / 2, df = nrow(d) - 2) * j.summary$std.error
 CI <- cbind(lower, upper)
-rownames(CI) <- c("(Intercept)", "weight")
+rownames(CI) <- c("(Intercept)", "Group_size")
 colnames(CI) <- c(paste0(as.character(alpha/2 * 100), " %"),paste0(as.character((1-alpha/2) * 100), " %"))
 CI
 ```
 
+```{r}
+#define the alpha, CI boundaries, and critical values
+alpha <- 0.05
+(CI <- confint(j, level = 1 - alpha))
+
+confidence_level <- 1 - alpha
+p_lower <- alpha / 2
+p_upper <- 1 - (alpha / 2)
+degrees_of_freedom <- nrow(d) - 2
+critical_value <- qt(p_upper, df = degrees_of_freedom)
+```
+
+```{r}
+#calculate the original slope of Group size
+original.slope <- lm(data = d, ECV ~ Group_size) %>%
+  tidy(conf.int=TRUE, conf.level=confidence_level) %>%
+  mutate(
+    lower = estimate - std.error * critical_value,
+    upper = estimate + std.error * critical_value
+  ) %>%
+  filter(term=="Group_size")
+original.slope 
+```
+Try to use a loop
+```{r}
+#calculate the permuted slope
+permuted.slope <- d %>%
+  specify(ECV ~ Group_size) %>%
+  hypothesize(null = "independence") %>% #set null hypothesis
+  generate(reps = 1000, type = "permute") %>%
+  calculate(stat = "slope")
+head(permuted.slope) 
+
+permuted.slope.summary <- permuted.slope %>%
+  summarize(
+    estimate = mean(stat),
+    std.error = sd(stat),
+    lower = estimate - std.error * critical_value,
+    upper = estimate + std.error * critical_value,
+    perm.lower = quantile(stat, p_lower),
+    perm.upper = quantile(stat, p_upper)
+  )
+permuted.slope.summary
+```
+get_ci(permuted.slope, level = 1 - alpha, type = "percentile")
+get_ci(permuted.slope, level = 1 - alpha, type = "se",
+  point_estimate = pull(permuted.slope.summary, estimate)
+)
+```{r}
+p.value <- permuted.slope %>% 
+  mutate(abs_stat=abs(stat)) %>%
+  summarize(
+    estimate = mean(abs_stat >= abs(pull(original.slope, estimate)))
+  )
+
+p.value
+```
+
+Bootstrapping
+```{r}
+boot.slope <- d %>%
+  specify(ECV ~ Group_size) %>% # specify model
+  generate(reps = 1000, type = "bootstrap") %>% # generate bootstrap replicates
+  # calculate the slope statistic
+  calculate(stat = "slope") # calculate the slope statistic
+
+head(boot.slope) # slopes from first few bootstrap replicates
+
+# create confidence intervals for regression coefficients
+
+boot.slope.summary <- boot.slope %>%
+  # summarize the mean, t distribution based CI, and quantile-based CI
+  summarize(
+    # mean of stat
+    estimate = mean(stat),
+    # std error of stat
+    std.error = sd(stat),
+    # calculate the CI based on the SE and t distribution
+    lower = estimate - std.error * critical_value,
+    upper = estimate + std.error * critical_value,
+    # calculate the CI based on the quantile (percentile)  method
+    boot.lower = quantile(stat, p_lower),
+    boot.upper = quantile(stat, p_upper)
+  )
+
+# show summary of bootstrap sampling distribution
+boot.slope.summary
+
+# plot the sampling distribution for based on bootstrapping
+hist(boot.slope$stat, main="Histogram of Bootstrapped\nSlope Values",
+  xlab = "Slope Coefficient")
+```
+
+March 31, 2021
+
+Elements of Regression
+the goal of regression is to partition variance in the response variable among different sources into that explained by the regression model itself versus the left-over error or residual variance
+
+We can separate of "partition" the total variation inn our y variable (te sum of squares of y or SSY) into the explained by our model (the sum of regrssion squares or SSR) and that which is left over as "error"(SSE)
+
+SSY = SSR + SSE
+```{r}
+library(tidyverse)
+library(mosaic)
+library(car)
+library(broom)
+
+f <- "https://raw.githubusercontent.com/difiore/ada-2022-datasets/main/zombies.csv"
+d <- read_csv(f, col_names = TRUE)
+
+m <- lm(data = d, height ~ weight)
+# height - mean(height)
+SSY <- sum((m$model$height - mean(m$model$height))^2)
+SSY
+
+# predicted height - mean height
+SSR <- sum((m$fitted.values - mean(m$model$height))^2)
+SSR
+
+# height - predicted height - unexplaind variance 
+SSE <- sum((m$model$height - m$fitted.values)^2)
+SSE
+
+SSEalt <- sum(m$residuals^2)
+SSEalt
+
+(df_regression <- 1)  # p = 1
+
+(df_error <- nrow(d) - df_regression - 1)  # n - p - 1
+
+(df_y <- nrow(d) - df_regression)  # n - p
+
+MSR <- SSR/df_regression  # mean variance explained by the regression equation
+MSE <- SSE/df_error  # mean remaining variance
+MSY <- SSY/df_y  # mean overall variance
+
+fratio <- MSR/MSE
+fratio
+
+plotDist("f", df1 = 1, df2 = 10, col = "green", lty = 3, lwd = 2, main = "Some Example F Distributions",
+    sub = "red vertical line shows critical value\n
+            for df1=1, df2=998",
+    ylab = "f(x)", xlab = "x", xlim = c(0, 5), ylim = c(0, 1.5), key = list(space = "right",
+        text = list(c("df1=1, df2=1", "df1=2, df2=2", "df1=4, df2=4", "df1=8, df2=100",
+            "df1=1, df2=998")), lines = list(col = c("green", "blue", "red", "purple",
+            "black"), lty = c(3, 3, 3, 3, 1), lwd = 2, bty = "n", cex = 0.75)))
+plotDist("f", df1 = 2, df2 = 2, col = "blue", lty = 3, lwd = 2, add = TRUE)
+plotDist("f", df1 = 4, df2 = 4, col = "red", lty = 3, lwd = 2, add = TRUE)
+plotDist("f", df1 = 8, df2 = 100, col = "purple", lty = 3, lwd = 2, add = TRUE)
+plotDist("f", df1 = 1, df2 = 998, col = "black", lty = 1, lwd = 2, add = TRUE)
+crit <- qf(p = 0.95, df1 = 1, df2 = 998)
+crit
+
+ladd(panel.abline(v = crit, col = "red", lty = 1, lwd = 1))
+
+plotDist("f", df1 = 1, df2 = 998, main = "df1 = 1, df2 = 998", xlab = "x", ylab = "f(x)",
+    xlim = c(0, 5), ylim = c(0, 1.5))
+crit <- qf(p = 0.95, df1 = 1, df2 = 998)
+crit
+
+ladd(panel.abline(v = crit, col = "red", lty = 1, lwd = 1))
+ladd(panel.polygon(cbind(c(crit, seq(from = crit, to = 12, length.out = 1000), 12),
+    c(0, df(seq(from = crit, to = 12, length.out = 1000), df1 = 1, df2 = 998), 0)),
+    border = "black", col = rgb(0, 0, 1, 0.5)))
